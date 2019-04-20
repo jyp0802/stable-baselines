@@ -51,10 +51,18 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     prev_actions = actions.copy()
     states = policy.initial_state
     done = True  # marks if we're on first timestep of an episode
+    
+    overcooked = 'spec' in env.__dict__.keys() and env.spec.id == "Overcooked-v0"
 
     while True:
         prevac = action
         action, vpred, states, _ = policy.step(observation.reshape(-1, *observation.shape), states, done)
+
+        if overcooked:
+            # Have to make each action a joint action, so will use policy for this
+            observation_other = env.base_env.mdp.switch_featurization_player(observation)
+            other_action, _, _, _ = policy.step(observation_other.reshape(-1, *observation.shape), states, done)
+
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
@@ -98,8 +106,25 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         if isinstance(env.action_space, gym.spaces.Box):
             clipped_action = np.clip(action, env.action_space.low, env.action_space.high)
 
+        if overcooked:
+            # Clip the actions to avoid out of bound error
+            clipped_other_action = other_action
+            
+            if isinstance(env.action_space, gym.spaces.Box):
+                clipped_other_action = np.clip(other_action, env.action_space.low, env.action_space.high)
+                
+            # Ordering of actions is handled internally to the Gym Overcooked environment
+            # Main player might have been assigned index 1 rather than index 0 to ensure both
+            # roles, but handled in environment
+            single_action = clipped_action
+            clipped_action = np.array([[clipped_action[0], clipped_other_action[0]]])
+
         if gail:
-            rew = reward_giver.get_reward(observation, clipped_action[0])
+            if overcooked:
+                # TODO: Understand reward giver in GAIL more. This might be important, not sure.
+                rew = reward_giver.get_reward(observation, single_action[0])
+            else:
+                rew = reward_giver.get_reward(observation, clipped_action[0])
             observation, true_rew, done, _info = env.step(clipped_action[0])
         else:
             observation, rew, done, _info = env.step(clipped_action[0])
