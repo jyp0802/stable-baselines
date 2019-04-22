@@ -29,6 +29,8 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     # Check when using GAIL
     assert not (gail and reward_giver is None), "You must pass a reward giver when using GAIL"
 
+    overcooked = 'spec' in env.__dict__.keys() and env.spec.id == "Overcooked-v0"
+
     # Initialize state variables
     step = 0
     action = env.action_space.sample()  # not used, just so we have the datatype
@@ -42,7 +44,13 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     ep_lens = []  # Episode lengths
 
     # Initialize history arrays
-    observations = np.array([observation for _ in range(horizon)])
+    if overcooked:
+        ob0, ob1 = observation
+        # History will be comprised of observations for player 0
+        # TODO: Figure out why we do this weird padding at the beginning!!!
+        observations = np.array([ob0 for _ in range(horizon)])        
+    else:
+        observations = np.array([observation for _ in range(horizon)])
     true_rews = np.zeros(horizon, 'float32')
     rews = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
@@ -52,16 +60,18 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     states = policy.initial_state
     done = True  # marks if we're on first timestep of an episode
     
-    overcooked = 'spec' in env.__dict__.keys() and env.spec.id == "Overcooked-v0"
+    
 
     while True:
-        prevac = action
-        action, vpred, states, _ = policy.step(observation.reshape(-1, *observation.shape), states, done)
 
+        prevac = action
         if overcooked:
-            # Have to make each action a joint action, so will use policy for this
-            observation_other = env.base_env.mdp.switch_featurization_player(observation)
-            other_action, _, _, _ = policy.step(observation_other.reshape(-1, *observation.shape), states, done)
+            ob0, ob1 = observation
+            # Have to make each action a joint action, so will use policy for thiS
+            action, vpred, states, _ = policy.step(ob0.reshape(-1, *ob0.shape), states, done)
+            other_action, _, _, _ = policy.step(ob1.reshape(-1, *ob1.shape), states, done)
+        else:
+            action, vpred, states, _ = policy.step(observation.reshape(-1, *observation.shape), states, done)
 
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
@@ -87,7 +97,11 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
                     "ep_true_rets": ep_true_rets,
                     "total_timestep": current_it_timesteps
             }
-            _, vpred, _, _ = policy.step(observation.reshape(-1, *observation.shape))
+            if overcooked:
+                # TODO: Figure out why this repeat?
+                _, vpred, _, _ = policy.step(ob0.reshape(-1, *ob0.shape))
+            else:
+                _, vpred, _, _ = policy.step(observation.reshape(-1, *observation.shape))
             # Be careful!!! if you change the downstream algorithm to aggregate
             # several of these batches, then be sure to do a deepcopy
             ep_rets = []
@@ -96,7 +110,12 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
             # make sure current_it_timesteps increments correctly
             current_it_len = 0
         i = step % horizon
-        observations[i] = observation
+
+        if overcooked:
+            observations[i] = ob0
+        else:
+            observations[i] = observation
+        
         vpreds[i] = vpred[0]
         actions[i] = action[0]
         prev_actions[i] = prevac
@@ -122,7 +141,7 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         if gail:
             if overcooked:
                 # TODO: Understand reward giver in GAIL more. This might be important, not sure.
-                rew = reward_giver.get_reward(observation, single_action[0])
+                rew = reward_giver.get_reward(ob0, single_action[0])
             else:
                 rew = reward_giver.get_reward(observation, clipped_action[0])
             observation, true_rew, done, _info = env.step(clipped_action[0])
