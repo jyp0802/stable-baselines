@@ -31,7 +31,7 @@ class ExpertDataset(object):
 
     def __init__(self, expert_path, train_fraction=0.7, batch_size=64,
                  traj_limitation=-1, randomize=True, verbose=1,
-                 sequential_preprocessing=False):
+                 sequential_preprocessing=False, indices_split=[]):
         traj_data = np.load(expert_path)
 
         if verbose > 0:
@@ -70,6 +70,9 @@ class ExpertDataset(object):
         # Train/Validation split when using behavior cloning
         train_indices = indices[:int(train_fraction * len(indices))]
         val_indices = indices[int(train_fraction * len(indices)):]
+
+        if len(indices_split) > 0:
+            train_indices, val_indices = indices_split
 
         assert len(train_indices) > 0, "No sample for the training set"
         assert len(val_indices) > 0, "No sample for the validation set"
