@@ -220,6 +220,7 @@ class BaseRLModel(ABC):
         if self.verbose > 0:
             print("Pretraining with Behavior Cloning...")
 
+        train_losses, val_losses, val_accuracies = [], [], []
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
@@ -239,20 +240,24 @@ class BaseRLModel(ABC):
                 # Full pass on the validation set
                 for _ in range(len(dataset.val_loader)):
                     expert_obs, expert_actions = dataset.get_next_batch('val')
-                    val_loss_, = self.sess.run([loss], {obs_ph: expert_obs,
+                    val_loss_, predicted_actions = self.sess.run([loss, actions_logits_ph], {obs_ph: expert_obs,
                                                         actions_ph: expert_actions})
+                    val_accuracy = np.mean(np.equal(expert_actions, np.argmax(predicted_actions, axis=1)))
                     val_loss += val_loss_
 
                 val_loss /= len(dataset.val_loader)
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
                     print('Epoch {}'.format(epoch_idx + 1))
-                    print("Training loss: {:.6f}, Validation loss: {:.6f}".format(train_loss, val_loss))
+                    print("Training loss: {:.6f}, Validation loss: {:.6f}, Accuracy: {:.6f}".format(
+                        train_loss, val_loss, val_accuracy
+                    ))
                     print()
             # Free memory
             del expert_obs, expert_actions
         if self.verbose > 0:
             print("Pretraining done.")
+        self.bc_info = (train_losses, val_losses, val_accuracies)
         return self
 
     @abstractmethod
