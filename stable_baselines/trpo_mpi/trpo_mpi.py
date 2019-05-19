@@ -481,10 +481,16 @@ class TRPO(ActorCriticRLModel):
 
         return self
 
-    def save(self, save_path):
-        if self.using_gail and self.expert_dataset is not None:
+    def save(self, save_path, include_data=True):
+        if self.using_gail and self.expert_dataset is not None and include_data:
             # Exit processes to pickle the dataset
             self.expert_dataset.prepare_pickling()
+
+        if not include_data:
+            expert_dataset = None
+        else:
+            expert_dataset = self.expert_dataset
+        
         data = {
             "gamma": self.gamma,
             "timesteps_per_batch": self.timesteps_per_batch,
@@ -497,7 +503,7 @@ class TRPO(ActorCriticRLModel):
             "vf_iters": self.vf_iters,
             "hidden_size_adversary": self.hidden_size_adversary,
             "adversary_entcoeff": self.adversary_entcoeff,
-            "expert_dataset": self.expert_dataset,
+            "expert_dataset": expert_dataset,
             "g_step": self.g_step,
             "d_step": self.d_step,
             "d_stepsize": self.d_stepsize,

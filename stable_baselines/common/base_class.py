@@ -168,7 +168,7 @@ class BaseRLModel(ABC):
         pass
 
     def pretrain(self, dataset, n_epochs=10, learning_rate=1e-4,
-                 adam_epsilon=1e-8, val_interval=None):
+                 adam_epsilon=1e-8, val_interval=None, save_dir=None):
         """
         Pretrain a model using behavior cloning:
         supervised learning given an expert dataset.
@@ -220,6 +220,7 @@ class BaseRLModel(ABC):
         if self.verbose > 0:
             print("Pretraining with Behavior Cloning...")
 
+        best_accuracy, best_loss = 0, np.inf
         train_losses, val_losses, val_accuracies = [], [], []
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
@@ -242,10 +243,27 @@ class BaseRLModel(ABC):
                     expert_obs, expert_actions = dataset.get_next_batch('val')
                     val_loss_, predicted_actions = self.sess.run([loss, actions_logits_ph], {obs_ph: expert_obs,
                                                         actions_ph: expert_actions})
+                    # TODO: figure out why accuracy seems weird?
+                    # print(expert_actions.shape)
                     val_accuracy = np.mean(np.equal(expert_actions, np.argmax(predicted_actions, axis=1)))
                     val_loss += val_loss_
-
                 val_loss /= len(dataset.val_loader)
+
+                # TODO: Save highest accuracy and lowest loss models
+                if val_accuracy > best_accuracy and save_dir is not None:
+                    print("SAVING BEST ACC")
+                    best_accuracy = val_accuracy
+                    self.save(save_dir + "best_acc", include_data=False)
+
+                if val_loss < best_loss and save_dir is not None:
+                    print("SAVING BEST LOSS")
+                    best_loss = val_loss
+                    self.save(save_dir + "best_loss", include_data=False)
+
+                train_losses.append(train_loss)
+                val_losses.append(val_loss)
+                val_accuracies.append(val_accuracy)
+
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
                     print('Epoch {}'.format(epoch_idx + 1))
@@ -257,7 +275,13 @@ class BaseRLModel(ABC):
             del expert_obs, expert_actions
         if self.verbose > 0:
             print("Pretraining done.")
-        self.bc_info = (train_losses, val_losses, val_accuracies)
+        self.bc_info = {
+            "train_losses": train_losses, 
+            "val_losses": val_losses,
+            "val_accuracies": val_accuracies,
+            "training_dataset_size": len(dataset.train_loader),
+            "validation_dataset_size": len(dataset.val_loader)
+        }
         return self
 
     @abstractmethod
