@@ -31,21 +31,14 @@ class ExpertDataset(object):
         the data (slower but use less memory for the CI)
     """
 
-<<<<<<< HEAD
-    def __init__(self, expert_path, train_fraction=0.7, batch_size=64,
-                 traj_limitation=-1, randomize=True, verbose=1,
-                 sequential_preprocessing=False, indices_split=[]):
-        traj_data = np.load(expert_path)
-=======
     def __init__(self, expert_path=None, traj_data=None, train_fraction=0.7, batch_size=64,
-                 traj_limitation=-1, randomize=True, verbose=1, sequential_preprocessing=False):
+                 traj_limitation=-1, randomize=True, verbose=1, sequential_preprocessing=False, indices_split=[]):
         if traj_data is not None and expert_path is not None:
             raise ValueError("Cannot specify both 'traj_data' and 'expert_path'")
         if traj_data is None and expert_path is None:
             raise ValueError("Must specify one of 'traj_data' or 'expert_path'")
         if traj_data is None:
             traj_data = np.load(expert_path)
->>>>>>> 43535a2139e7221749cb8b7230cf281383782402
 
         if verbose > 0:
             for key, val in traj_data.items():

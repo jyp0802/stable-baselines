@@ -47,7 +47,6 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     ep_lens = []  # Episode lengths
 
     # Initialize history arrays
-<<<<<<< HEAD
     if overcooked:
         ob0, ob1 = observation
         # History will be comprised of observations for player 0
@@ -55,22 +54,15 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         observations = np.array([ob0 for _ in range(horizon)])        
     else:
         observations = np.array([observation for _ in range(horizon)])
-    true_rews = np.zeros(horizon, 'float32')
-    rews = np.zeros(horizon, 'float32')
-=======
-    observations = np.array([observation for _ in range(horizon)])
     true_rewards = np.zeros(horizon, 'float32')
     rewards = np.zeros(horizon, 'float32')
->>>>>>> 43535a2139e7221749cb8b7230cf281383782402
     vpreds = np.zeros(horizon, 'float32')
     episode_starts = np.zeros(horizon, 'bool')
     dones = np.zeros(horizon, 'bool')
     actions = np.array([action for _ in range(horizon)])
     states = policy.initial_state
-<<<<<<< HEAD
-    done = True  # marks if we're on first timestep of an episode
-    
-    
+    episode_start = True  # marks if we're on first timestep of an episode
+    done = False
 
     while True:
 
@@ -83,13 +75,6 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         else:
             action, vpred, states, _ = policy.step(observation.reshape(-1, *observation.shape), states, done)
 
-=======
-    episode_start = True  # marks if we're on first timestep of an episode
-    done = False
-
-    while True:
-        action, vpred, states, _ = policy.step(observation.reshape(-1, *observation.shape), states, done)
->>>>>>> 43535a2139e7221749cb8b7230cf281383782402
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
@@ -150,17 +135,12 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
             clipped_action = np.array([[clipped_action[0], clipped_other_action[0]]])
 
         if gail:
-<<<<<<< HEAD
             if overcooked:
                 # TODO: Understand reward giver in GAIL more. This might be important, not sure.
-                rew = reward_giver.get_reward(ob0, single_action[0])
+                reward = reward_giver.get_reward(ob0, single_action[0])
             else:
-                rew = reward_giver.get_reward(observation, clipped_action[0])
-            observation, true_rew, done, _info = env.step(clipped_action[0])
-=======
-            reward = reward_giver.get_reward(observation, clipped_action[0])
+                reward = reward_giver.get_reward(observation, clipped_action[0])
             observation, true_reward, done, info = env.step(clipped_action[0])
->>>>>>> 43535a2139e7221749cb8b7230cf281383782402
         else:
             observation, reward, done, info = env.step(clipped_action[0])
             true_reward = reward
