@@ -17,6 +17,8 @@ def _worker(remote, parent_remote, env_fn_wrapper):
             if cmd == 'step':
                 observation, reward, done, info = env.step(data)
                 if done:
+                    # save final observation where user can get it, then reset
+                    info['terminal_observation'] = observation
                     observation = env.reset()
                 remote.send((observation, reward, done, info))
             elif cmd == 'reset':
@@ -44,7 +46,11 @@ def _worker(remote, parent_remote, env_fn_wrapper):
 
 class SubprocVecEnv(VecEnv):
     """
-    Creates a multiprocess vectorized wrapper for multiple environments
+    Creates a multiprocess vectorized wrapper for multiple environments, distributing each environment to its own
+    process, allowing significant speed up when the environment is computationally complex.
+
+    For performance reasons, if your environment is not IO bound, the number of environments should not exceed the
+    number of logical cores on your CPU.
 
     .. warning::
 
