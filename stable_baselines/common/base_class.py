@@ -213,7 +213,7 @@ class BaseRLModel(ABC):
         pass
 
     def pretrain(self, dataset, n_epochs=10, learning_rate=1e-4,
-                 adam_epsilon=1e-8, val_interval=None, save_dir=None):
+                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=True):
         """
         Pretrain a model using behavior cloning:
         supervised learning given an expert dataset.
@@ -266,7 +266,7 @@ class BaseRLModel(ABC):
             print("Pretraining with Behavior Cloning...")
 
         best_accuracy, best_loss = 0, np.inf
-        train_losses, val_losses, val_accuracies = [], [], []
+        train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards = [], [], [], [], []
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
@@ -282,32 +282,59 @@ class BaseRLModel(ABC):
             train_loss /= len(dataset.train_loader)
 
             if self.verbose > 0 and (epoch_idx + 1) % val_interval == 0:
+                
+                from overcooked_ai_py.mdp.actions import Action
+                wait_action_idx = Action.ACTION_TO_INDEX[Action.STAY]
+
                 val_loss = 0.0
                 # Full pass on the validation set
                 for _ in range(len(dataset.val_loader)):
                     expert_obs, expert_actions = dataset.get_next_batch('val')
                     val_loss_, predicted_actions = self.sess.run([loss, actions_logits_ph], {obs_ph: expert_obs,
                                                         actions_ph: expert_actions})
-                    # TODO: figure out why accuracy seems weird?
-                    # print(expert_actions.shape)
-                    val_accuracy = np.mean(np.equal(expert_actions, np.argmax(predicted_actions, axis=1)))
+
+                    # Calculating top-k accuracy (probably around 99% if wait action is not removed)
+                    k = 3
+                    top_k_pred_actions = []
+                    for state_ex_act, state_pred_act in zip(expert_actions, predicted_actions):
+                        # Don't include wait actions in top k accuracy calculation
+                        if state_ex_act == wait_action_idx:
+                            continue
+
+                        # One of these will be wait, so effectively this is equivalent to top k-1
+                        in_top_k = state_ex_act in state_pred_act.argsort()[-k:][::-1]
+                        top_k_pred_actions.append(in_top_k)
+
+                    val_accuracy = np.mean(top_k_pred_actions)
                     val_loss += val_loss_
                 val_loss /= len(dataset.val_loader)
 
-                # TODO: Save highest accuracy and lowest loss models
+                # Saving highest accuracy and lowest loss models
                 if val_accuracy > best_accuracy and save_dir is not None:
-                    print("SAVING BEST ACC")
+                    # print("SAVING BEST ACC")
                     best_accuracy = val_accuracy
                     self.save(save_dir + "best_acc", include_data=False)
 
                 if val_loss < best_loss and save_dir is not None:
-                    print("SAVING BEST LOSS")
+                    # print("SAVING BEST LOSS")
                     best_loss = val_loss
                     self.save(save_dir + "best_loss", include_data=False)
 
                 train_losses.append(train_loss)
                 val_losses.append(val_loss)
                 val_accuracies.append(val_accuracy)
+
+                if evaluation:
+                    from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
+                    
+                    n_games = 20
+                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, heuristic=False, info=False)
+                    avg_reward = np.mean(trajs['ep_returns'])
+                    avg_rewards.append(avg_reward)
+
+                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, heuristic=True, info=False)
+                    avg_reward = np.mean(trajs['ep_returns'])
+                    avg_unstuck_rewards.append(avg_reward)
 
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
@@ -321,9 +348,12 @@ class BaseRLModel(ABC):
         if self.verbose > 0:
             print("Pretraining done.")
         self.bc_info = {
+            "n_epochs": n_epochs,
             "train_losses": train_losses, 
             "val_losses": val_losses,
             "val_accuracies": val_accuracies,
+            "avg_BCBC_reward": avg_rewards,
+            "avg_unstuckBCBC_rewards": avg_unstuck_rewards,
             "training_dataset_size": len(dataset.train_loader),
             "validation_dataset_size": len(dataset.val_loader)
         }
