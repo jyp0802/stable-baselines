@@ -213,7 +213,7 @@ class BaseRLModel(ABC):
         pass
 
     def pretrain(self, dataset, n_epochs=10, learning_rate=1e-4,
-                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=True):
+                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=False):
         """
         Pretrain a model using behavior cloning:
         supervised learning given an expert dataset.
@@ -328,11 +328,11 @@ class BaseRLModel(ABC):
                     from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
                     
                     n_games = 20
-                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, heuristic=False, info=False)
+                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
                     avg_reward = np.mean(trajs['ep_returns'])
                     avg_rewards.append(avg_reward)
 
-                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, heuristic=True, info=False)
+                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
                     avg_reward = np.mean(trajs['ep_returns'])
                     avg_unstuck_rewards.append(avg_reward)
 
