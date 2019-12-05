@@ -205,6 +205,10 @@ def lstm(input_tensor, mask_tensor, cell_state_hidden, scope, n_hidden, init_sca
     :param layer_norm: (bool) Whether to apply Layer Normalization or not
     :return: (TensorFlow Tensor) LSTM cell
     """
+    # print("input_sequence", input_tensor)
+    # print("masks", mask_tensor)
+    # print("STATE", cell_state_hidden)
+    # print("n_hidden", n_hidden)
     _, n_input = [v.value for v in input_tensor[0].get_shape()]
     with tf.variable_scope(scope):
         weight_x = tf.get_variable("wx", [n_input, n_hidden * 4], initializer=ortho_init(init_scale))

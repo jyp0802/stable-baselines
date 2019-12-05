@@ -111,7 +111,7 @@ class PPO2(ActorCriticRLModel):
             assert issubclass(self.policy, ActorCriticPolicy), "Error: the input policy for the PPO2 model must be " \
                                                                "an instance of common.policies.ActorCriticPolicy."
 
-            self.n_batch = self.n_envs * self.n_steps
+            self.n_batch = self.n_envs * self.n_steps # Size of each batch
 
             n_cpu = multiprocessing.cpu_count()
             if sys.platform == 'darwin':
@@ -133,6 +133,7 @@ class PPO2(ActorCriticRLModel):
                                         n_batch_step, reuse=False, **self.policy_kwargs)
                 with tf.variable_scope("train_model", reuse=True,
                                        custom_getter=tf_util.outer_scope_getter("train_model")):
+                    # print("STATE SHAPE", n_batch_train, "") d
                     train_model = self.policy(self.sess, self.observation_space, self.action_space,
                                               self.n_envs // self.nminibatches, self.n_steps, n_batch_train,
                                               reuse=True, **self.policy_kwargs)
@@ -271,6 +272,7 @@ class PPO2(ActorCriticRLModel):
                   self.learning_rate_ph: learning_rate, self.clip_range_ph: cliprange,
                   self.old_neglog_pac_ph: neglogpacs, self.old_vpred_ph: values}
         if states is not None:
+            # States is only going to be the initial state for the n_Steps?????
             td_map[self.train_model.states_ph] = states
             td_map[self.train_model.dones_ph] = masks
 
@@ -280,6 +282,9 @@ class PPO2(ActorCriticRLModel):
         if states is None:
             update_fac = self.n_batch // self.nminibatches // self.noptepochs + 1
         else:
+            # If states is not none, some weird thing is happening here
+            # Basically they are dividing each update is self.n_steps + 1, not quite sure why
+            # Probably has to do with the weird dimensions for train_model.states_ph
             update_fac = self.n_batch // self.nminibatches // self.noptepochs // self.n_steps + 1
 
         if writer is not None:
@@ -331,8 +336,9 @@ class PPO2(ActorCriticRLModel):
                 cliprange_now = self.cliprange(frac)
                 cliprange_vf_now = cliprange_vf(frac)
                 # true_reward is the reward without discount
+                # States here is too small!!!! What is going on??? -> Hidden states are being computed in policy as we go. Don't have to worry about them
                 obs, returns, masks, actions, values, neglogpacs, states, ep_infos, true_reward = runner.run()
-                self.num_timesteps += self.n_batch
+                self.num_timesteps += self.n_batch # At each update, we update on n_batch observations
                 ep_info_buf.extend(ep_infos)
                 mb_loss_vals = []
                 if states is None:  # nonrecurrent version
@@ -353,17 +359,18 @@ class PPO2(ActorCriticRLModel):
                     assert self.n_envs % self.nminibatches == 0
                     env_indices = np.arange(self.n_envs)
                     flat_indices = np.arange(self.n_envs * self.n_steps).reshape(self.n_envs, self.n_steps)
-                    envs_per_batch = batch_size // self.n_steps
+                    envs_per_batch = batch_size // self.n_steps # Each minibatch is assigned some num of envs
                     for epoch_num in range(self.noptepochs):
                         np.random.shuffle(env_indices)
                         for start in range(0, self.n_envs, envs_per_batch):
                             timestep = self.num_timesteps // update_fac + ((self.noptepochs * self.n_envs + epoch_num *
                                                                             self.n_envs + start) // envs_per_batch)
                             end = start + envs_per_batch
-                            mb_env_inds = env_indices[start:end]
+                            mb_env_inds = env_indices[start:end] # Selecting random subset of envs for each minibatch
                             mb_flat_inds = flat_indices[mb_env_inds].ravel()
                             slices = (arr[mb_flat_inds] for arr in (obs, returns, masks, actions, values, neglogpacs))
                             mb_states = states[mb_env_inds]
+                            # print("MB STATES", mb_states.shape, "obs", obs.shape)
                             mb_loss_vals.append(self._train_step(lr_now, cliprange_now, *slices, update=timestep,
                                                                  writer=writer, states=mb_states,
                                                                  cliprange_vf=cliprange_vf_now))
@@ -459,9 +466,11 @@ class Runner(AbstractEnvRunner):
         """
         # mb stands for minibatch
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [], [], [], [], [], []
-        mb_states = self.states
+        mb_states = self.states # Initial state of the RNN states
         ep_infos = []
         for _ in range(self.n_steps):
+            # Update current pointer to states – all of these are for one timestep change
+            # We are calculating all hidden states but only returning the first one? Why is that?
             actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
             mb_obs.append(self.obs.copy())
             mb_actions.append(actions)

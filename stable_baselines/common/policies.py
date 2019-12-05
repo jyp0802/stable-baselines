@@ -115,6 +115,7 @@ class BasePolicy(ABC):
         with tf.variable_scope("input", reuse=False):
             if obs_phs is None:
                 self._obs_ph, self._processed_obs = observation_input(ob_space, n_batch, scale=scale)
+                # print("WTFF is going", n_batch, self.obs_ph, self.processed_obs)
             else:
                 self._obs_ph, self._processed_obs = obs_phs
 
@@ -347,6 +348,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             self._dones_ph = tf.placeholder(tf.float32, (n_batch, ), name="dones_ph")  # (done t-1)
             state_ph_shape = (self.n_env, ) + tuple(state_shape)
             self._states_ph = tf.placeholder(tf.float32, state_ph_shape, name="states_ph")
+            # print("BRO", state_ph_shape, "OBS SPACE", ob_space)
 
         initial_state_shape = (self.n_env, ) + tuple(state_shape)
         self._initial_state = np.zeros(initial_state_shape, dtype=np.float32)
@@ -401,11 +403,13 @@ class LstmPolicy(RecurrentActorCriticPolicy):
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, n_lstm=256, reuse=False, layers=None,
                  net_arch=None, act_fun=tf.tanh, cnn_extractor=nature_cnn, layer_norm=False, feature_extraction="cnn",
                  **kwargs):
+        # print("N BATCH", n_batch, "N STEPS", n_steps)
         # state_shape = [n_lstm * 2] dim because of the cell and hidden states of the LSTM
         super(LstmPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch,
                                          state_shape=(2 * n_lstm, ), reuse=reuse,
                                          scale=(feature_extraction == "cnn"))
 
+        self.n_lstm = n_lstm
         self._kwargs_check(feature_extraction, kwargs)
 
         if net_arch is None:  # Legacy mode
@@ -419,11 +423,13 @@ class LstmPolicy(RecurrentActorCriticPolicy):
                     extracted_features = cnn_extractor(self.processed_obs, **kwargs)
                 else:
                     extracted_features = tf.layers.flatten(self.processed_obs)
+                    # print("EXTRACTED FEATS", extracted_features)
                     for i, layer_size in enumerate(layers):
                         extracted_features = act_fun(linear(extracted_features, 'pi_fc' + str(i), n_hidden=layer_size,
                                                             init_scale=np.sqrt(2)))
+                # Transforming back n_steps * n_envs into [(n_envs, t_0), ..., (n_envs, t_n_steps)]
                 input_sequence = batch_to_seq(extracted_features, self.n_env, n_steps)
-                masks = batch_to_seq(self.dones_ph, self.n_env, n_steps)
+                masks = batch_to_seq(self.dones_ph, self.n_env, n_steps) # TODO: Understand how dones are supposed to work
                 rnn_output, self.snew = lstm(input_sequence, masks, self.states_ph, 'lstm1', n_hidden=n_lstm,
                                              layer_norm=layer_norm)
                 rnn_output = seq_to_batch(rnn_output)
