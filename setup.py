@@ -144,7 +144,7 @@ setup(name='stable_baselines',
       version="2.5.1a0",
       )
 
-# python setup.py sdist
-# python setup.py bdist_wheel
+# python UNFINISHED_setup.py sdist
+# python UNFINISHED_setup.py bdist_wheel
 # twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 # twine upload dist/*
