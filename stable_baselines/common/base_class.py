@@ -168,7 +168,7 @@ class BaseRLModel(ABC):
         pass
 
     def pretrain(self, dataset, n_epochs=10, learning_rate=1e-4,
-                 adam_epsilon=1e-8, val_interval=None, save_dir=None):
+                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=False):
         """
         Pretrain a model using behavior cloning:
         supervised learning given an expert dataset.
