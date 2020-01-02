@@ -5,8 +5,130 @@ Changelog
 
 For download links, please look at `Github release page <https://github.com/hill-a/stable-baselines/releases>`_.
 
-Pre-Release 2.5.1a0 (WIP)
+
+Pre-Release 2.7.0a0 (WIP)
 --------------------------
+
+**Twin Delayed DDPG (TD3)**
+
+Breaking Changes:
+^^^^^^^^^^^^^^^^^
+
+New Features:
+^^^^^^^^^^^^^
+- added Twin Delayed DDPG (TD3) algorithm, with HER support
+
+- Add support for continuous action spaces to `action_probability`, computing the PDF of a Gaussian
+  policy in addition to the existing support for categorical stochastic policies.
+- Add flag to `action_probability` to return log-probabilities.
+- Added support for python lists and numpy arrays in ``logger.writekvs``. (@dwiel)
+- The info dicts returned by VecEnvs now include a ``terminal_observation`` key providing access to the last observation in a trajectory. (@qxcv)
+
+Bug Fixes:
+^^^^^^^^^^
+- fixed a bug in ``traj_segment_generator`` where the ``episode_starts`` was wrongly recorded,
+  resulting in wrong calculation of Generalized Advantage Estimation (GAE), this affects TRPO, PPO1 and GAIL (thanks to @miguelrass for spotting the bug)
+- add missing property `n_batch` in `BasePolicy`.
+
+Deprecations:
+^^^^^^^^^^^^^
+
+Others:
+^^^^^^^
+- renamed some keys in ``traj_segment_generator`` to be more meaningful
+- retrieve unnormalized reward when using Monitor wrapper with TRPO, PPO1 and GAIL
+  to display them in the logs (mean episode reward)
+- Clean up DDPG code (renamed variables)
+
+Documentation:
+^^^^^^^^^^^^^^
+
+- doc fix for the hyperparameter tuning command in the rl zoo
+
+
+
+Release 2.6.0 (2019-06-12)
+--------------------------
+
+**Hindsight Experience Replay (HER) - Reloaded | get/load parameters**
+
+Breaking Changes:
+^^^^^^^^^^^^^^^^^
+
+- **breaking change** removed ``stable_baselines.ddpg.memory`` in favor of ``stable_baselines.deepq.replay_buffer`` (see fix below)
+
+**Breaking Change:** DDPG replay buffer was unified with DQN/SAC replay buffer. As a result,
+when loading a DDPG model trained with stable_baselines<2.6.0, it throws an import error.
+You can fix that using:
+
+.. code-block:: python
+
+  import sys
+  import pkg_resources
+
+  import stable_baselines
+
+  # Fix for breaking change for DDPG buffer in v2.6.0
+  if pkg_resources.get_distribution("stable_baselines").version >= "2.6.0":
+      sys.modules['stable_baselines.ddpg.memory'] = stable_baselines.deepq.replay_buffer
+      stable_baselines.deepq.replay_buffer.Memory = stable_baselines.deepq.replay_buffer.ReplayBuffer
+
+
+We recommend you to save again the model afterward, so the fix won't be needed the next time the trained agent is loaded.
+
+
+New Features:
+^^^^^^^^^^^^^
+
+- **revamped HER implementation**: clean re-implementation from scratch, now supports DQN, SAC and DDPG
+- add ``action_noise`` param for SAC, it helps exploration for problem with deceptive reward
+- The parameter ``filter_size`` of the function ``conv`` in A2C utils now supports passing a list/tuple of two integers (height and width), in order to have non-squared kernel matrix. (@yutingsz)
+- add ``random_exploration`` parameter for DDPG and SAC, it may be useful when using HER + DDPG/SAC. This hack was present in the original OpenAI Baselines DDPG + HER implementation.
+- added ``load_parameters`` and ``get_parameters`` to base RL class. With these methods, users are able to load and get parameters to/from existing model, without touching tensorflow. (@Miffyli)
+- added specific hyperparameter for PPO2 to clip the value function (``cliprange_vf``)
+- added ``VecCheckNan`` wrapper
+
+Bug Fixes:
+^^^^^^^^^^
+
+- bugfix for ``VecEnvWrapper.__getattr__`` which enables access to class attributes inherited from parent classes.
+- fixed path splitting in ``TensorboardWriter._get_latest_run_id()`` on Windows machines (@PatrickWalter214)
+- fixed a bug where initial learning rate is logged instead of its placeholder in ``A2C.setup_model`` (@sc420)
+- fixed a bug where number of timesteps is incorrectly updated and logged in ``A2C.learn`` and ``A2C._train_step`` (@sc420)
+- fixed ``num_timesteps`` (total_timesteps) variable in PPO2 that was wrongly computed.
+- fixed a bug in DDPG/DQN/SAC, when there were the number of samples in the replay buffer was lesser than the batch size
+  (thanks to @dwiel for spotting the bug)
+- **removed** ``a2c.utils.find_trainable_params`` please use ``common.tf_util.get_trainable_vars`` instead.
+  ``find_trainable_params`` was returning all trainable variables, discarding the scope argument.
+  This bug was causing the model to save duplicated parameters (for DDPG and SAC)
+  but did not affect the performance.
+
+Deprecations:
+^^^^^^^^^^^^^
+
+- **deprecated** ``memory_limit`` and ``memory_policy`` in DDPG, please use ``buffer_size`` instead. (will be removed in v3.x.x)
+
+Others:
+^^^^^^^
+
+- **important change** switched to using dictionaries rather than lists when storing parameters, with tensorflow Variable names being the keys. (@Miffyli)
+- removed unused dependencies (tdqm, dill, progressbar2, seaborn, glob2, click)
+- removed ``get_available_gpus`` function which hadn't been used anywhere (@Pastafarianist)
+
+Documentation:
+^^^^^^^^^^^^^^
+
+- added guide for managing ``NaN`` and ``inf``
+- updated ven_env doc
+- misc doc updates
+
+
+Release 2.5.1 (2019-05-04)
+--------------------------
+
+**Bug fixes + improvements in the VecEnv**
+
+**Warning: breaking changes when using custom policies**
 
 - doc update (fix example of result plotter + improve doc)
 - fixed logger issues when stdout lacks ``read`` function
@@ -15,9 +137,20 @@ Pre-Release 2.5.1a0 (WIP)
 - added support for multi env recording to ``generate_expert_traj`` (@XMaster96)
 - added support for LSTM model recording to ``generate_expert_traj`` (@XMaster96)
 - ``GAIL``: remove mandatory matplotlib dependency and refactor as subclass of ``TRPO`` (@kantneel and @AdamGleave)
-- added ``get_attr()``, ``env_method()`` and ``set_attr()`` methods for all VecEnv. 
+- added ``get_attr()``, ``env_method()`` and ``set_attr()`` methods for all VecEnv.
   Those methods now all accept ``indices`` keyword to select a subset of envs.
   ``set_attr`` now returns ``None`` rather than a list of ``None``. (@kantneel)
+- ``GAIL``: ``gail.dataset.ExpertDataset`` supports loading from memory rather than file, and
+  ``gail.dataset.record_expert`` supports returning in-memory rather than saving to file.
+- added support in ``VecEnvWrapper`` for accessing attributes of arbitrarily deeply nested
+  instances of ``VecEnvWrapper`` and ``VecEnv``. This is allowed as long as the attribute belongs
+  to exactly one of the nested instances i.e. it must be unambiguous. (@kantneel)
+- fixed bug where result plotter would crash on very short runs (@Pastafarianist)
+- added option to not trim output of result plotter by number of timesteps (@Pastafarianist)
+- clarified the public interface of ``BasePolicy`` and ``ActorCriticPolicy``. **Breaking change** when using custom policies: ``masks_ph`` is now called ``dones_ph``,
+  and most placeholders were made private: e.g. ``self.value_fn`` is now ``self._value_fn``
+- support for custom stateful policies.
+- fixed episode length recording in ``trpo_mpi.utils.traj_segment_generator`` (@GerardMaggiolino)
 
 
 Release 2.5.0 (2019-03-28)
@@ -280,4 +413,5 @@ In random order...
 
 Thanks to @bjmuld @iambenzo @iandanforth @r7vme @brendenpetersen @huvar @abhiskk @JohannesAck
 @EliasHasle @mrakgr @Bleyddyn @antoine-galataud @junhyeokahn @AdamGleave @keshaviyengar @tperol
-@XMaster96 @kantneel
+@XMaster96 @kantneel @Pastafarianist @GerardMaggiolino @PatrickWalter214 @yutingsz @sc420 @Aaahh @billtubbs
+@Miffyli @dwiel @miguelrass @qxcv
