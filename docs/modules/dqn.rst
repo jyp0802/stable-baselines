@@ -93,7 +93,7 @@ With Atari:
 
   del model # remove to demonstrate saving and loading
 
-  model = DQN.load("deepq_breakout")
+  DQN.load("deepq_breakout")
 
   obs = env.reset()
   while True:

@@ -5,12 +5,12 @@ import tensorflow as tf
 from gym.spaces import Discrete, Box
 
 from stable_baselines import logger
-from stable_baselines.a2c.utils import batch_to_seq, seq_to_batch, Scheduler, EpisodeStats, \
+from stable_baselines.a2c.utils import batch_to_seq, seq_to_batch, Scheduler, find_trainable_variables, EpisodeStats, \
     get_by_index, check_shape, avg_norm, gradient_add, q_explained_variance, total_episode_reward_logger
 from stable_baselines.acer.buffer import Buffer
 from stable_baselines.common import ActorCriticRLModel, tf_util, SetVerbosity, TensorboardWriter
 from stable_baselines.common.runners import AbstractEnvRunner
-from stable_baselines.common.policies import ActorCriticPolicy, RecurrentActorCriticPolicy
+from stable_baselines.common.policies import LstmPolicy, ActorCriticPolicy
 
 
 def strip(var, n_envs, n_steps, flat=False):
@@ -187,14 +187,14 @@ class ACER(ActorCriticRLModel):
                 self.sess = tf_util.make_session(num_cpu=self.num_procs, graph=self.graph)
 
                 n_batch_step = None
-                if issubclass(self.policy, RecurrentActorCriticPolicy):
+                if issubclass(self.policy, LstmPolicy):
                     n_batch_step = self.n_envs
                 n_batch_train = self.n_envs * (self.n_steps + 1)
 
                 step_model = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs, 1,
                                          n_batch_step, reuse=False, **self.policy_kwargs)
 
-                self.params = tf_util.get_trainable_vars("model")
+                self.params = find_trainable_variables("model")
 
                 with tf.variable_scope("train_model", reuse=True,
                                        custom_getter=tf_util.outer_scope_getter("train_model")):
@@ -229,7 +229,7 @@ class ACER(ActorCriticRLModel):
                     # (var)_i = variable index by action at step i
                     # shape is [n_envs * (n_steps + 1)]
                     if continuous:
-                        value = train_model.value_flat
+                        value = train_model.value_fn[:, 0]
                     else:
                         value = tf.reduce_sum(train_model.policy_proba * train_model.q_value, axis=-1)
 
@@ -436,9 +436,9 @@ class ACER(ActorCriticRLModel):
 
         if states is not None:
             td_map[self.train_model.states_ph] = states
-            td_map[self.train_model.dones_ph] = masks
+            td_map[self.train_model.masks_ph] = masks
             td_map[self.polyak_model.states_ph] = states
-            td_map[self.polyak_model.dones_ph] = masks
+            td_map[self.polyak_model.masks_ph] = masks
 
         if writer is not None:
             # run loss backprop with summary, but once every 10 runs save the metadata (memory, compute time, ...)
@@ -566,9 +566,9 @@ class ACER(ActorCriticRLModel):
             "policy_kwargs": self.policy_kwargs
         }
 
-        params_to_save = self.get_parameters()
+        params = self.sess.run(self.params)
 
-        self._save_to_file(save_path, data=data, params=params_to_save)
+        self._save_to_file(save_path, data=data, params=params)
 
 
 class _Runner(AbstractEnvRunner):

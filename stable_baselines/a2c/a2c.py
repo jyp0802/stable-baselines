@@ -7,9 +7,9 @@ import tensorflow as tf
 
 from stable_baselines import logger
 from stable_baselines.common import explained_variance, tf_util, ActorCriticRLModel, SetVerbosity, TensorboardWriter
-from stable_baselines.common.policies import ActorCriticPolicy, RecurrentActorCriticPolicy
+from stable_baselines.common.policies import LstmPolicy, ActorCriticPolicy
 from stable_baselines.common.runners import AbstractEnvRunner
-from stable_baselines.a2c.utils import discount_with_dones, Scheduler, mse, \
+from stable_baselines.a2c.utils import discount_with_dones, Scheduler, find_trainable_variables, mse, \
     total_episode_reward_logger
 from stable_baselines.ppo2.ppo2 import safe_mean
 
@@ -23,7 +23,7 @@ class A2C(ActorCriticRLModel):
     :param n_steps: (int) The number of steps to run for each environment per update
         (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
     :param vf_coef: (float) Value function coefficient for the loss calculation
-    :param ent_coef: (float) Entropy coefficient for the loss calculation
+    :param ent_coef: (float) Entropy coefficient for the loss caculation
     :param max_grad_norm: (float) The maximum value for the gradient clipping
     :param learning_rate: (float) The learning rate
     :param alpha: (float)  RMSProp decay parameter (default: 0.99)
@@ -105,7 +105,7 @@ class A2C(ActorCriticRLModel):
 
                 n_batch_step = None
                 n_batch_train = None
-                if issubclass(self.policy, RecurrentActorCriticPolicy):
+                if issubclass(self.policy, LstmPolicy):
                     n_batch_step = self.n_envs
                     n_batch_train = self.n_envs * self.n_steps
 
@@ -126,7 +126,7 @@ class A2C(ActorCriticRLModel):
                     neglogpac = train_model.proba_distribution.neglogp(self.actions_ph)
                     self.entropy = tf.reduce_mean(train_model.proba_distribution.entropy())
                     self.pg_loss = tf.reduce_mean(self.advs_ph * neglogpac)
-                    self.vf_loss = mse(tf.squeeze(train_model.value_flat), self.rewards_ph)
+                    self.vf_loss = mse(tf.squeeze(train_model._value), self.rewards_ph)
                     # https://arxiv.org/pdf/1708.04782.pdf#page=9, https://arxiv.org/pdf/1602.01783.pdf#page=4
                     # and https://github.com/dennybritz/reinforcement-learning/issues/34
                     # suggest to add an entropy component in order to improve exploration.
@@ -137,7 +137,7 @@ class A2C(ActorCriticRLModel):
                     tf.summary.scalar('value_function_loss', self.vf_loss)
                     tf.summary.scalar('loss', loss)
 
-                    self.params = tf_util.get_trainable_vars("model")
+                    self.params = find_trainable_variables("model")
                     grads = tf.gradients(loss, self.params)
                     if self.max_grad_norm is not None:
                         grads, _ = tf.clip_by_global_norm(grads, self.max_grad_norm)
@@ -145,11 +145,11 @@ class A2C(ActorCriticRLModel):
 
                 with tf.variable_scope("input_info", reuse=False):
                     tf.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
+                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate))
                     tf.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
                     if self.full_tensorboard_log:
                         tf.summary.histogram('discounted_rewards', self.rewards_ph)
-                        tf.summary.histogram('learning_rate', self.learning_rate_ph)
+                        tf.summary.histogram('learning_rate', self.learning_rate)
                         tf.summary.histogram('advantage', self.advs_ph)
                         if tf_util.is_image(self.observation_space):
                             tf.summary.image('observation', train_model.obs_ph)
@@ -194,7 +194,7 @@ class A2C(ActorCriticRLModel):
                   self.rewards_ph: rewards, self.learning_rate_ph: cur_lr}
         if states is not None:
             td_map[self.train_model.states_ph] = states
-            td_map[self.train_model.dones_ph] = masks
+            td_map[self.train_model.masks_ph] = masks
 
         if writer is not None:
             # run loss backprop with summary, but once every 10 runs save the metadata (memory, compute time, ...)
@@ -204,11 +204,11 @@ class A2C(ActorCriticRLModel):
                 summary, policy_loss, value_loss, policy_entropy, _ = self.sess.run(
                     [self.summary, self.pg_loss, self.vf_loss, self.entropy, self.apply_backprop],
                     td_map, options=run_options, run_metadata=run_metadata)
-                writer.add_run_metadata(run_metadata, 'step%d' % (update * self.n_batch))
+                writer.add_run_metadata(run_metadata, 'step%d' % (update * (self.n_batch + 1)))
             else:
                 summary, policy_loss, value_loss, policy_entropy, _ = self.sess.run(
                     [self.summary, self.pg_loss, self.vf_loss, self.entropy, self.apply_backprop], td_map)
-            writer.add_summary(summary, update * self.n_batch)
+            writer.add_summary(summary, update * (self.n_batch + 1))
 
         else:
             policy_loss, value_loss, policy_entropy, _ = self.sess.run(
@@ -239,7 +239,7 @@ class A2C(ActorCriticRLModel):
                 obs, states, rewards, masks, actions, values, ep_infos, true_reward = runner.run()
                 ep_info_buf.extend(ep_infos)
                 _, value_loss, policy_entropy = self._train_step(obs, states, rewards, masks, actions, values,
-                                                                 self.num_timesteps // self.n_batch, writer)
+                                                                 self.num_timesteps // (self.n_batch + 1), writer)
                 n_seconds = time.time() - t_start
                 fps = int((update * self.n_batch) / n_seconds)
 
@@ -249,7 +249,7 @@ class A2C(ActorCriticRLModel):
                                                                       masks.reshape((self.n_envs, self.n_steps)),
                                                                       writer, self.num_timesteps)
 
-                self.num_timesteps += self.n_batch
+                self.num_timesteps += self.n_batch + 1
 
                 if callback is not None:
                     # Only stop training if return value is False, not when it is None. This is for backwards
@@ -292,9 +292,9 @@ class A2C(ActorCriticRLModel):
             "policy_kwargs": self.policy_kwargs
         }
 
-        params_to_save = self.get_parameters()
+        params = self.sess.run(self.params)
 
-        self._save_to_file(save_path, data=data, params=params_to_save)
+        self._save_to_file(save_path, data=data, params=params)
 
 
 class A2CRunner(AbstractEnvRunner):

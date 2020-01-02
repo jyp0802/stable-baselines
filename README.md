@@ -11,8 +11,6 @@ You can read a detailed presentation of Stable Baselines in the [Medium article]
 
 These algorithms will make it easier for the research community and industry to replicate, refine, and identify new ideas, and will create good baselines to build projects on top of. We expect these tools will be used as a base around which new ideas can be added, and as a tool for comparing a new approach against existing ones. We also hope that the simplicity of these tools will allow beginners to experiment with a more advanced toolset, without being buried in implementation details.
 
-**Note: despite its simplicity of use, Stable Baselines (SB) assumes you have some knowledge about Reinforcement Learning (RL).** You should not utilize this library without some practice. To that extent, we provide good resources in the [documentation](https://stable-baselines.readthedocs.io/en/master/guide/rl.html) to get started with RL.
-
 ## Main differences with OpenAI Baselines
 
 This toolset is a fork of OpenAI Baselines, with a major structural refactoring, and code cleanups:
@@ -20,8 +18,6 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
 - PEP8 compliant (unified code style)
 - Documented functions and classes
 - More tests & more code coverage
-- Additional algorithms: SAC and TD3 (+ HER support for DQN, DDPG, SAC and TD3)
-
 
 | **Features**                | **Stable-Baselines**              | **OpenAI Baselines**              |
 | --------------------------- | --------------------------------- | --------------------------------- |
@@ -32,25 +28,26 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
 | Common interface            | :heavy_check_mark:                | :heavy_minus_sign: <sup>(3)</sup> |
 | Tensorboard support         | :heavy_check_mark:                | :heavy_minus_sign: <sup>(4)</sup> |
 | Ipython / Notebook friendly | :heavy_check_mark:                | :x:                               |
-| PEP8 code style             | :heavy_check_mark:                | :heavy_check_mark: <sup>(5)</sup> |
+| PEP8 code style             | :heavy_check_mark:                | :heavy_minus_sign: <sup>(5)</sup> |
 | Custom callback             | :heavy_check_mark:                | :heavy_minus_sign: <sup>(6)</sup> |
 
-<sup><sup>(1): Forked from previous version of OpenAI baselines, with now SAC and TD3 in addition</sup></sup><br>
+<sup><sup>(1): Forked from previous version of OpenAI baselines, however missing refactoring for HER.</sup></sup><br>
 <sup><sup>(2): Currently not available for DDPG, and only from the run script. </sup></sup><br>
 <sup><sup>(3): Only via the run script.</sup></sup><br>
 <sup><sup>(4): Rudimentary logging of training information (no loss nor graph). </sup></sup><br>
-<sup><sup>(5): EDIT: you did it OpenAI! :cat:</sup></sup><br>
+<sup><sup>(5): WIP on OpenAI's side (you can do it OpenAI! :cat:)</sup></sup><br>
 <sup><sup>(6): Passing a callback function is only available for DQN</sup></sup><br>
 
 ## Documentation
 
 Documentation is available online: [https://stable-baselines.readthedocs.io/](https://stable-baselines.readthedocs.io/)
 
-## RL Baselines Zoo: A Collection of 100+ Trained RL Agents
+## RL Baselines Zoo: A Collection of 70+ Trained RL Agents
 
-[RL Baselines Zoo](https://github.com/araffin/rl-baselines-zoo). is a collection of pre-trained Reinforcement Learning agents using Stable-Baselines.
+[RL Baselines Zoo](https://github.com/araffin/rl-baselines-zoo). is a collection of pre-trained Reinforcement Learning agents using
+Stable-Baselines.
 
-It also provides basic scripts for training, evaluating agents, tuning hyperparameters and recording videos.
+It also provides basic scripts for training, evaluating agents and recording videos.
 
 Goals of this repository:
 
@@ -75,7 +72,7 @@ sudo apt-get update && sudo apt-get install cmake libopenmpi-dev python3-dev zli
 ```
 
 #### Mac OS X
-Installation of system packages on Mac requires [Homebrew](https://brew.sh). With Homebrew installed, run the following:
+Installation of system packages on Mac requires [Homebrew](https://brew.sh). With Homebrew installed, run the follwing:
 ```bash
 brew install cmake openmpi
 ```
@@ -118,8 +115,6 @@ for i in range(1000):
     action, _states = model.predict(obs)
     obs, rewards, dones, info = env.step(action)
     env.render()
-
-env.close()
 ```
 
 Or just train a model with a one liner if [the environment is registered in Gym](https://github.com/openai/gym/wiki/Environments) and if [the policy is registered](https://stable-baselines.readthedocs.io/en/master/guide/custom_policy.html):
@@ -148,26 +143,25 @@ All the following examples can be executed online using Google colab notebooks:
 
 | **Name**            | **Refactored**<sup>(1)</sup> | **Recurrent**      | ```Box```          | ```Discrete```     | ```MultiDiscrete``` | ```MultiBinary```  | **Multi Processing**              |
 | ------------------- | ---------------------------- | ------------------ | ------------------ | ------------------ | ------------------- | ------------------ | --------------------------------- |
-| A2C                 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark:                |
+| A2C                 | :heavy_check_mark:           | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark:                |
 | ACER                | :heavy_check_mark:           | :heavy_check_mark: | :x: <sup>(5)</sup> | :heavy_check_mark: | :x:                 | :x:                | :heavy_check_mark:                |
 | ACKTR               | :heavy_check_mark:           | :heavy_check_mark: | :x: <sup>(5)</sup> | :heavy_check_mark: | :x:                 | :x:                | :heavy_check_mark:                |
-| DDPG                | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :x:                | :x:                 | :x:                | :heavy_check_mark: <sup>(4)</sup>|
+| DDPG                | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :x:                | :x:                 | :x:                | :x:                               |
 | DQN                 | :heavy_check_mark:           | :x:                | :x:                | :heavy_check_mark: | :x:                 | :x:                | :x:                               |
 | GAIL <sup>(2)</sup> | :heavy_check_mark:           | :x:                | :heavy_check_mark: |:heavy_check_mark:| :x:                 | :x:                | :heavy_check_mark: <sup>(4)</sup> |
-| HER <sup>(3)</sup>  | :heavy_check_mark: | :x:                | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:| :x:                               |
+| HER <sup>(3)</sup>  | :x: <sup>(5)</sup>           | :x:                | :heavy_check_mark: | :x:                | :x:                 | :x:                | :x:                               |
 | PPO1                | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: <sup>(4)</sup> |
 | PPO2                | :heavy_check_mark:           | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark:                |
 | SAC                 | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :x:                | :x:                 | :x:                | :x:                               |
-| TD3                 | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :x:                | :x:                 | :x:                | :x:                               |
 | TRPO                | :heavy_check_mark:           | :x:                | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: <sup>(4)</sup> |
 
 <sup><sup>(1): Whether or not the algorithm has be refactored to fit the ```BaseRLModel``` class.</sup></sup><br>
 <sup><sup>(2): Only implemented for TRPO.</sup></sup><br>
-<sup><sup>(3): Re-implemented from scratch, now supports DQN, DDPG, SAC and TD3</sup></sup><br>
+<sup><sup>(3): Only implemented for DDPG.</sup></sup><br>
 <sup><sup>(4): Multi Processing with [MPI](https://mpi4py.readthedocs.io/en/stable/).</sup></sup><br>
 <sup><sup>(5): TODO, in project scope.</sup></sup>
 
-NOTE: Soft Actor-Critic (SAC) and Twin Delayed DDPG (TD3) were not part of the original baselines and HER was reimplemented from scratch.
+NOTE: Soft Actor-Critic (SAC) was not part of the original baselines.
 
 Actions ```gym.spaces```:
  * ```Box```: A N-dimensional box that containes every point in the action space.
@@ -196,22 +190,19 @@ please tell us when if you want your project to appear on this page ;)
 To cite this repository in publications:
 
 ```
-@misc{stable-baselines,
-  author = {Hill, Ashley and Raffin, Antonin and Ernestus, Maximilian and Gleave, Adam and Traore, Rene and Dhariwal, Prafulla and Hesse, Christopher and Klimov, Oleg and Nichol, Alex and Plappert, Matthias and Radford, Alec and Schulman, John and Sidor, Szymon and Wu, Yuhuai},
-  title = {Stable Baselines},
-  year = {2018},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/hill-a/stable-baselines}},
-}
+    @misc{stable-baselines,
+      author = {Hill, Ashley and Raffin, Antonin and Ernestus, Maximilian and Gleave, Adam and Traore, Rene and Dhariwal, Prafulla and Hesse, Christopher and Klimov, Oleg and Nichol, Alex and Plappert, Matthias and Radford, Alec and Schulman, John and Sidor, Szymon and Wu, Yuhuai},
+      title = {Stable Baselines},
+      year = {2018},
+      publisher = {GitHub},
+      journal = {GitHub repository},
+      howpublished = {\url{https://github.com/hill-a/stable-baselines}},
+    }
 ```
 
 ## Maintainers
 
 Stable-Baselines is currently maintained by [Ashley Hill](https://github.com/hill-a) (aka @hill-a), [Antonin Raffin](https://araffin.github.io/) (aka [@araffin](https://github.com/araffin)), [Maximilian Ernestus](https://github.com/erniejunior) (aka @erniejunior) and [Adam Gleave](https://github.com/adamgleave) (@AdamGleave).
-
-**Important Note: We do not do technical support, nor consulting** and don't answer personal questions per email.
-
 
 ## How To Contribute
 
@@ -223,4 +214,4 @@ If you want to contribute, please read **CONTRIBUTING.md** guide first.
 
 Stable Baselines was created in the [robotics lab U2IS](http://u2is.ensta-paristech.fr/index.php?lang=en) ([INRIA Flowers](https://flowers.inria.fr/) team) at [ENSTA ParisTech](http://www.ensta-paristech.fr/en).
 
-Logo credits: [L.M. Tenkes](https://www.instagram.com/lucillehue/)
+Logo credits: L.M. Tenkes

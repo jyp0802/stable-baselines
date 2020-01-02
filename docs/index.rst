@@ -13,7 +13,7 @@ Github repository: https://github.com/hill-a/stable-baselines
 
 RL Baselines Zoo (collection of pre-trained agents): https://github.com/araffin/rl-baselines-zoo
 
-RL Baselines zoo also offers a simple interface to train, evaluate agents and do hyperparameter tuning.
+RL Baselines zoo also offers a simple interface to train and evaluate agents.
 
 You can read a detailed presentation of Stable Baselines in the
 Medium article: `link <https://medium.com/@araffin/stable-baselines-a-fork-of-openai-baselines-reinforcement-learning-made-easy-df87c4b2fc82>`_
@@ -30,7 +30,6 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
 - PEP8 compliant (unified code style)
 - Documented functions and classes
 - More tests & more code coverage
-- Additional algorithms: SAC and TD3 (+ HER support for DQN, DDPG, SAC and TD3)
 
 
 .. toctree::
@@ -48,7 +47,6 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
    guide/tensorboard
    guide/rl_zoo
    guide/pretrain
-   guide/checking_nan
 
 
 .. toctree::
@@ -67,7 +65,6 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
   modules/ppo1
   modules/ppo2
   modules/sac
-  modules/td3
   modules/trpo
 
 .. toctree::

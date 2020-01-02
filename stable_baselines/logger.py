@@ -8,11 +8,6 @@ import tempfile
 import warnings
 from collections import defaultdict
 
-import tensorflow as tf
-from tensorflow.python import pywrap_tensorflow
-from tensorflow.core.util import event_pb2
-from tensorflow.python.util import compat
-
 DEBUG = 10
 INFO = 20
 WARN = 30
@@ -129,12 +124,8 @@ class JSONOutputFormat(KVWriter):
     def writekvs(self, kvs):
         for key, value in sorted(kvs.items()):
             if hasattr(value, 'dtype'):
-                if value.shape == () or len(value) == 1:
-                    # if value is a dimensionless numpy array or of length 1, serialize as a float
-                    kvs[key] = float(value)
-                else:
-                    # otherwise, a value is a numpy array, serialize as a list or nested lists
-                    kvs[key] = value.tolist()
+                value = value.tolist()
+                kvs[key] = float(value)
         self.file.write(json.dumps(kvs) + '\n')
         self.file.flush()
 
@@ -189,29 +180,6 @@ class CSVOutputFormat(KVWriter):
         self.file.close()
 
 
-def summary_val(key, value):
-    """
-    :param key: (str)
-    :param value: (float)
-    """
-    kwargs = {'tag': key, 'simple_value': float(value)}
-    return tf.Summary.Value(**kwargs)
-
-
-def valid_float_value(value):
-    """
-    Returns True if the value can be successfully cast into a float
-
-    :param value: (Any) the value to check
-    :return: (bool)
-    """
-    try:
-        float(value)
-        return True
-    except TypeError:
-        return False
-
-
 class TensorBoardOutputFormat(KVWriter):
     def __init__(self, folder):
         """
@@ -224,11 +192,22 @@ class TensorBoardOutputFormat(KVWriter):
         self.step = 1
         prefix = 'events'
         path = os.path.join(os.path.abspath(folder), prefix)
+        import tensorflow as tf
+        from tensorflow.python import pywrap_tensorflow
+        from tensorflow.core.util import event_pb2
+        from tensorflow.python.util import compat
+        self._tf = tf
+        self.event_pb2 = event_pb2
+        self.pywrap_tensorflow = pywrap_tensorflow
         self.writer = pywrap_tensorflow.EventsWriter(compat.as_bytes(path))
 
     def writekvs(self, kvs):
-        summary = tf.Summary(value=[summary_val(k, v) for k, v in kvs.items() if valid_float_value(v)])
-        event = event_pb2.Event(wall_time=time.time(), summary=summary)
+        def summary_val(key, value):
+            kwargs = {'tag': key, 'simple_value': float(value)}
+            return self._tf.Summary.Value(**kwargs)
+
+        summary = self._tf.Summary(value=[summary_val(k, v) for k, v in kvs.items()])
+        event = self.event_pb2.Event(wall_time=time.time(), summary=summary)
         event.step = self.step  # is there any reason why you'd want to specify the step?
         self.writer.WriteEvent(event)
         self.writer.Flush()

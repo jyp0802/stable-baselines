@@ -10,7 +10,7 @@ from stable_baselines.common import Dataset, explained_variance, fmt_row, zipsam
     TensorboardWriter
 from stable_baselines import logger
 import stable_baselines.common.tf_util as tf_util
-from stable_baselines.common.policies import ActorCriticPolicy
+from stable_baselines.common.policies import LstmPolicy, ActorCriticPolicy
 from stable_baselines.common.mpi_adam import MpiAdam
 from stable_baselines.common.mpi_moments import mpi_moments
 from stable_baselines.trpo_mpi.utils import traj_segment_generator, add_vtarg_and_adv, flatten_lists
@@ -137,7 +137,7 @@ class PPO1(ActorCriticRLModel):
 
                     # PPO's pessimistic surrogate (L^CLIP)
                     pol_surr = - tf.reduce_mean(tf.minimum(surr1, surr2))
-                    vf_loss = tf.reduce_mean(tf.square(self.policy_pi.value_flat - ret))
+                    vf_loss = tf.reduce_mean(tf.square(self.policy_pi.value_fn[:, 0] - ret))
                     total_loss = pol_surr + pol_entpen + vf_loss
                     losses = [pol_surr, pol_entpen, vf_loss, meankl, meanent]
                     self.loss_names = ["pol_surr", "pol_entpen", "vf_loss", "kl", "ent"]
@@ -145,7 +145,7 @@ class PPO1(ActorCriticRLModel):
                     tf.summary.scalar('entropy_loss', pol_entpen)
                     tf.summary.scalar('policy_gradient_loss', pol_surr)
                     tf.summary.scalar('value_function_loss', vf_loss)
-                    tf.summary.scalar('approximate_kullback-leibler', meankl)
+                    tf.summary.scalar('approximate_kullback-leiber', meankl)
                     tf.summary.scalar('clip_factor', clip_param)
                     tf.summary.scalar('loss', total_loss)
 
@@ -239,13 +239,12 @@ class PPO1(ActorCriticRLModel):
                     add_vtarg_and_adv(seg, self.gamma, self.lam)
 
                     # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
-                    observations, actions = seg["observations"], seg["actions"]
-                    atarg, tdlamret = seg["adv"], seg["tdlamret"]
+                    obs_ph, action_ph, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
 
                     # true_rew is the reward without discount
                     if writer is not None:
                         self.episode_reward = total_episode_reward_logger(self.episode_reward,
-                                                                          seg["true_rewards"].reshape((self.n_envs, -1)),
+                                                                          seg["true_rew"].reshape((self.n_envs, -1)),
                                                                           seg["dones"].reshape((self.n_envs, -1)),
                                                                           writer, self.num_timesteps)
 
@@ -254,9 +253,9 @@ class PPO1(ActorCriticRLModel):
 
                     # standardized advantage function estimate
                     atarg = (atarg - atarg.mean()) / atarg.std()
-                    dataset = Dataset(dict(ob=observations, ac=actions, atarg=atarg, vtarg=tdlamret),
-                                      shuffle=not self.policy.recurrent)
-                    optim_batchsize = self.optim_batchsize or observations.shape[0]
+                    dataset = Dataset(dict(ob=obs_ph, ac=action_ph, atarg=atarg, vtarg=tdlamret),
+                                      shuffle=not issubclass(self.policy, LstmPolicy))
+                    optim_batchsize = self.optim_batchsize or obs_ph.shape[0]
 
                     # set old parameter values to new parameter values
                     self.assign_old_eq_new(sess=self.sess)
@@ -355,6 +354,6 @@ class PPO1(ActorCriticRLModel):
             "policy_kwargs": self.policy_kwargs
         }
 
-        params_to_save = self.get_parameters()
+        params = self.sess.run(self.params)
 
-        self._save_to_file(save_path, data=data, params=params_to_save)
+        self._save_to_file(save_path, data=data, params=params)

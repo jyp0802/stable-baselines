@@ -50,7 +50,6 @@ This toolset is a fork of OpenAI Baselines, with a major structural refactoring,
 -   PEP8 compliant (unified code style)
 -   Documented functions and classes
 -   More tests & more code coverage
--   Additional algorithms: SAC and TD3 (+ HER support for DQN, DDPG, SAC and TD3)
 
 ## Links
 
@@ -108,20 +107,24 @@ setup(name='stable_baselines',
       install_requires=[
           'gym[atari,classic_control]>=0.10.9',
           'scipy',
+          'tqdm',
           'joblib',
+          'zmq',
+          'dill',
           'mpi4py',
           'cloudpickle>=0.5.5',
+          'click',
           'opencv-python',
           'numpy',
           'pandas',
-          'matplotlib'
+          'matplotlib',
+          'seaborn',
+          'glob2'
       ] + tf_dependency,
       extras_require={
         'tests': [
             'pytest==3.5.1',
-            'pytest-cov',
-            'pytest-env',
-            'pytest-xdist',
+            'pytest-cov'
         ],
         'docs': [
             'sphinx',
@@ -138,7 +141,7 @@ setup(name='stable_baselines',
       license="MIT",
       long_description=long_description,
       long_description_content_type='text/markdown',
-      version="2.7.0a0",
+      version="2.5.1a0",
       )
 
 # python setup.py sdist

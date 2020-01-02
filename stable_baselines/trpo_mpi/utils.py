@@ -15,14 +15,12 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
     :param gail: (bool) Whether we are using this generator for standard trpo or with gail
     :return: (dict) generator that returns a dict with the following keys:
 
-        - observations: (np.ndarray) observations
-        - rewards: (numpy float) rewards (if gail is used it is the predicted reward)
-        - true_rewards: (numpy float) if gail is used it is the original reward
+        - ob: (np.ndarray) observations
+        - rew: (numpy float) rewards (if gail is used it is the predicted reward)
         - vpred: (numpy float) action logits
-        - dones: (numpy bool) dones (is end of episode, used for logging)
-        - episode_starts: (numpy bool)
-            True if first timestep of an episode, used for GAE
-        - actions: (np.ndarray) actions
+        - dones: (numpy bool) dones (is end of episode -> True if first timestep of an episode)
+        - ac: (np.ndarray) actions
+        - prevac: (np.ndarray) previous actions
         - nextvpred: (numpy float) next action logits
         - ep_rets: (float) cumulated current episode reward
         - ep_lens: (int) the length of the current episode
@@ -40,7 +38,6 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
 
     cur_ep_ret = 0  # return in current episode
     current_it_len = 0  # len of current iteration
-    current_ep_len = 0 # len of current episode
     cur_ep_true_ret = 0
     ep_true_rets = []
     ep_rets = []  # returns of completed episodes in this segment
@@ -54,15 +51,16 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         observations = np.array([ob0 for _ in range(horizon)])        
     else:
         observations = np.array([observation for _ in range(horizon)])
-    true_rewards = np.zeros(horizon, 'float32')
-    rewards = np.zeros(horizon, 'float32')
+    true_rews = np.zeros(horizon, 'float32')
+    rews = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
-    episode_starts = np.zeros(horizon, 'bool')
-    dones = np.zeros(horizon, 'bool')
+    dones = np.zeros(horizon, 'int32')
     actions = np.array([action for _ in range(horizon)])
+    prev_actions = actions.copy()
     states = policy.initial_state
-    episode_start = True  # marks if we're on first timestep of an episode
-    done = False
+    done = True  # marks if we're on first timestep of an episode
+    
+    
 
     while True:
 
@@ -79,19 +77,25 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         # before returning segment [0, T-1] so we get the correct
         # terminal value
         if step > 0 and step % horizon == 0:
+            # Fix to avoid "mean of empty slice" warning when there is only one episode
+            if len(ep_rets) == 0:
+                current_it_timesteps = current_it_len
+            else:
+                current_it_timesteps = sum(ep_lens) + current_it_len
+
             yield {
-                    "observations": observations,
-                    "rewards": rewards,
+                    "ob": observations,
+                    "rew": rews,
                     "dones": dones,
-                    "episode_starts": episode_starts,
-                    "true_rewards": true_rewards,
+                    "true_rew": true_rews,
                     "vpred": vpreds,
-                    "actions": actions,
-                    "nextvpred": vpred[0] * (1 - episode_start),
+                    "ac": actions,
+                    "prevac": prev_actions,
+                    "nextvpred": vpred[0] * (1 - done),
                     "ep_rets": ep_rets,
                     "ep_lens": ep_lens,
                     "ep_true_rets": ep_true_rets,
-                    "total_timestep": current_it_len
+                    "total_timestep": current_it_timesteps
             }
             if overcooked:
                 # TODO: Figure out why this repeat?
@@ -103,7 +107,7 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
             ep_rets = []
             ep_true_rets = []
             ep_lens = []
-            # Reset current iteration length
+            # make sure current_it_timesteps increments correctly
             current_it_len = 0
         i = step % horizon
 
@@ -114,7 +118,7 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         
         vpreds[i] = vpred[0]
         actions[i] = action[0]
-        episode_starts[i] = episode_start
+        prev_actions[i] = prevac
 
         clipped_action = action
         # Clip the actions to avoid out of bound error
@@ -137,36 +141,27 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, gail=False):
         if gail:
             if overcooked:
                 # TODO: Understand reward giver in GAIL more. This might be important, not sure.
-                reward = reward_giver.get_reward(ob0, single_action[0])
+                rew = reward_giver.get_reward(ob0, single_action[0])
             else:
-                reward = reward_giver.get_reward(observation, clipped_action[0])
-            observation, true_reward, done, info = env.step(clipped_action[0])
+                rew = reward_giver.get_reward(observation, clipped_action[0])
+            observation, true_rew, done, _info = env.step(clipped_action[0])
         else:
-            observation, reward, done, info = env.step(clipped_action[0])
-            true_reward = reward
-        rewards[i] = reward
-        true_rewards[i] = true_reward
+            observation, rew, done, _info = env.step(clipped_action[0])
+            true_rew = rew
+        rews[i] = rew
+        true_rews[i] = true_rew
         dones[i] = done
-        episode_start = done
 
-        cur_ep_ret += reward
-        cur_ep_true_ret += true_reward
+        cur_ep_ret += rew
+        cur_ep_true_ret += true_rew
         current_it_len += 1
-        current_ep_len += 1
         if done:
-            # Retrieve unnormalized reward if using Monitor wrapper
-            maybe_ep_info = info.get('episode')
-            if maybe_ep_info is not None:
-                if not gail:
-                    cur_ep_ret = maybe_ep_info['r']
-                cur_ep_true_ret = maybe_ep_info['r']
-
             ep_rets.append(cur_ep_ret)
             ep_true_rets.append(cur_ep_true_ret)
-            ep_lens.append(current_ep_len)
+            ep_lens.append(current_it_len)
             cur_ep_ret = 0
             cur_ep_true_ret = 0
-            current_ep_len = 0
+            current_it_len = 0
             if not isinstance(env, VecEnv):
                 observation = env.reset()
         step += 1
@@ -181,16 +176,16 @@ def add_vtarg_and_adv(seg, gamma, lam):
     :param lam: (float) GAE factor
     """
     # last element is only used for last vtarg, but we already zeroed it if last new = 1
-    episode_starts = np.append(seg["episode_starts"], False)
+    new = np.append(seg["dones"], 0)
     vpred = np.append(seg["vpred"], seg["nextvpred"])
-    rew_len = len(seg["rewards"])
-    seg["adv"] = np.empty(rew_len, 'float32')
-    rewards = seg["rewards"]
+    rew_len = len(seg["rew"])
+    seg["adv"] = gaelam = np.empty(rew_len, 'float32')
+    rew = seg["rew"]
     lastgaelam = 0
     for step in reversed(range(rew_len)):
-        nonterminal = 1 - float(episode_starts[step + 1])
-        delta = rewards[step] + gamma * vpred[step + 1] * nonterminal - vpred[step]
-        seg["adv"][step] = lastgaelam = delta + gamma * lam * nonterminal * lastgaelam
+        nonterminal = 1 - new[step + 1]
+        delta = rew[step] + gamma * vpred[step + 1] * nonterminal - vpred[step]
+        gaelam[step] = lastgaelam = delta + gamma * lam * nonterminal * lastgaelam
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 
