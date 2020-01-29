@@ -257,6 +257,17 @@ class BaseRLModel(ABC):
                         labels=tf.stop_gradient(one_hot_actions)
                     )
                     loss = tf.reduce_mean(loss)
+
+                    # Modified by Micah Carroll on 1/29/2020, in order to be able
+                    # to perform simple_save, so as to be able to convert models
+                    # to javascript with tensorflow_js
+                    self.bc_action_probs = tf.nn.softmax(
+                        actions_logits_ph,
+                        name="action_probs"
+                    )
+                    self.bc_observations = tf.identity(obs_ph, name="obs")
+                    # print([n.name for n in tf.get_default_graph().as_graph_def().node])
+
                 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)
                 optim_op = optimizer.minimize(loss, var_list=self.params)
 
@@ -266,7 +277,7 @@ class BaseRLModel(ABC):
             print("Pretraining with Behavior Cloning...")
 
         best_accuracy, best_loss = 0, np.inf
-        train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards = [], [], [], [], []
+        train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards, apple_pickups = [], [], [], [], [], []
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
@@ -325,16 +336,44 @@ class BaseRLModel(ABC):
                 val_accuracies.append(val_accuracy)
 
                 if evaluation:
-                    from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
-                    
-                    n_games = 20
-                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
-                    avg_reward = np.mean(trajs['ep_returns'])
-                    avg_rewards.append(avg_reward)
+                    if evaluation == "gathering":
+                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
+                        from gathering_ai_py.agents.benchmarking import AgentEvaluator
+                        from gathering_ai_py.agents.agent import AgentPair
+                        from human_aware_rl.ppo.ppo import get_ppo_agent
+                        from human_aware_rl.imitation.behavioural_cloning import get_bc_agent_from_model
+                        import copy
 
-                    trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
-                    avg_reward = np.mean(trajs['ep_returns'])
-                    avg_unstuck_rewards.append(avg_reward)
+                        bc_params = copy.deepcopy(self.bc_params)
+                        del bc_params["mdp_fn_params"]
+                        a_eval = AgentEvaluator(**bc_params)
+
+                        # Evaluate wrt apple pickups with other BC agent
+                        n_games = 10
+                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=True, a_eval_and_ap=(a_eval, AgentPair))
+                        avg_apple_pickup = np.mean(a_eval.get_summary_stats_across_trajs(trajs)['apple_pickup'])
+                        apple_pickups.append(avg_apple_pickup)
+
+                        # Evaluate wrt score wrt SP agent
+                        n_games = 10
+                        a0 = get_bc_agent_from_model(self, self.bc_params, unblock_if_stuck=False, stochastic=True, mdp=a_eval.mdp_fn())
+                        a1, _ = get_ppo_agent("gathering_sp_basic", None, env_name="Gathering-v0", best=True)
+                        ap = AgentPair(a0, a1)
+                        trajs = a_eval.evaluate_agent_pair(ap, num_games=n_games, display=False, info=True)
+                        avg_reward = np.mean(trajs['ep_returns'])
+                        avg_rewards.append(avg_reward)
+
+                    else:
+                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
+
+                        n_games = 20
+                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
+                        avg_reward = np.mean(trajs['ep_returns'])
+                        avg_rewards.append(avg_reward)
+
+                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
+                        avg_reward = np.mean(trajs['ep_returns'])
+                        avg_unstuck_rewards.append(avg_reward)
 
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
@@ -343,8 +382,10 @@ class BaseRLModel(ABC):
                         train_loss, val_loss, val_accuracy
                     ))
                     print()
+
             # Free memory
             del expert_obs, expert_actions
+
         if self.verbose > 0:
             print("Pretraining done.")
         self.bc_info = {
@@ -353,6 +394,7 @@ class BaseRLModel(ABC):
             "val_losses": val_losses,
             "val_accuracies": val_accuracies,
             "avg_BCBC_reward": avg_rewards,
+            "apple_pickups": apple_pickups,
             "avg_unstuckBCBC_rewards": avg_unstuck_rewards,
             "training_dataset_size": len(dataset.train_loader),
             "validation_dataset_size": len(dataset.val_loader)
