@@ -349,14 +349,14 @@ class BaseRLModel(ABC):
                         a_eval = AgentEvaluator(**bc_params)
 
                         # Evaluate wrt apple pickups with other BC agent
-                        n_games = 10
+                        n_games = 20
                         trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=True, a_eval_and_ap=(a_eval, AgentPair))
                         avg_apple_pickup = np.mean(a_eval.get_summary_stats_across_trajs(trajs)['apple_pickup'])
                         apple_pickups.append(avg_apple_pickup)
 
                         # Evaluate wrt score wrt SP agent
-                        n_games = 10
-                        a0 = get_bc_agent_from_model(self, self.bc_params, unblock_if_stuck=False, stochastic=True, mdp=a_eval.mdp_fn())
+                        n_games = 20
+                        a0 = get_bc_agent_from_model(self, self.bc_params, unblock_if_stuck=False, stochastic=True, gathering=True, mdp=a_eval.mdp_fn())
                         a1, _ = get_ppo_agent("gathering_sp_basic", None, env_name="Gathering-v0", best=True)
                         ap = AgentPair(a0, a1)
                         trajs = a_eval.evaluate_agent_pair(ap, num_games=n_games, display=False, info=True)
