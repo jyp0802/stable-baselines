@@ -277,7 +277,9 @@ class BaseRLModel(ABC):
             print("Pretraining with Behavior Cloning...")
 
         best_accuracy, best_loss = 0, np.inf
-        train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards, apple_pickups = [], [], [], [], [], []
+        from collections import defaultdict
+        self.bc_info = {"game_stats": defaultdict(list)}
+        train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards = [], [], [], [], []
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
@@ -351,8 +353,13 @@ class BaseRLModel(ABC):
                         # Evaluate wrt apple pickups with other BC agent
                         n_games = 20
                         trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=True, a_eval_and_ap=(a_eval, AgentPair))
-                        avg_apple_pickup = np.mean(a_eval.get_summary_stats_across_trajs(trajs)['apple_pickup'])
-                        apple_pickups.append(avg_apple_pickup)
+                        stats = a_eval.get_summary_stats_across_trajs(trajs)
+                        avg_apple_pickup = np.mean(stats['apple_pickup'])
+                        self.bc_info["game_stats"]["apple_pickups"].append(avg_apple_pickup)
+                        avg_apple_delivery = np.mean(stats['apple_delivery'])
+                        self.bc_info["game_stats"]["apple_delivery"].append(avg_apple_delivery)
+                        tag = np.mean(stats['tag'])
+                        self.bc_info["game_stats"]["tag"].append(tag)
 
                         # Evaluate wrt score wrt SP agent
                         n_games = 20
@@ -388,17 +395,16 @@ class BaseRLModel(ABC):
 
         if self.verbose > 0:
             print("Pretraining done.")
-        self.bc_info = {
+        self.bc_info.update({
             "n_epochs": n_epochs,
             "train_losses": train_losses, 
             "val_losses": val_losses,
             "val_accuracies": val_accuracies,
             "avg_BCBC_reward": avg_rewards,
-            "apple_pickups": apple_pickups,
             "avg_unstuckBCBC_rewards": avg_unstuck_rewards,
             "training_dataset_size": len(dataset.train_loader),
             "validation_dataset_size": len(dataset.val_loader)
-        }
+        })
         return self
 
     @abstractmethod
