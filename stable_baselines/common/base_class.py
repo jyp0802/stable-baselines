@@ -284,6 +284,7 @@ class BaseRLModel(ABC):
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
+            print("GOT DATA", epoch_idx)
             for _ in range(len(dataset.train_loader)):
                 expert_obs, expert_actions = dataset.get_next_batch('train')
                 feed_dict = {
@@ -329,10 +330,10 @@ class BaseRLModel(ABC):
                     best_accuracy = val_accuracy
                     self.save(save_dir + "best_acc", include_data=False)
 
-                if val_loss < best_loss and save_dir is not None:
-                    # print("SAVING BEST LOSS")
-                    best_loss = val_loss
-                    self.save(save_dir + "best_loss", include_data=False)
+                # if val_loss < best_loss and save_dir is not None:
+                #     # print("SAVING BEST LOSS")
+                #     best_loss = val_loss
+                #     self.save(save_dir + "best_loss", include_data=False)
 
                 train_losses.append(train_loss)
                 val_losses.append(val_loss)

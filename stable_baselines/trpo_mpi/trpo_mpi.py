@@ -497,7 +497,7 @@ class TRPO(ActorCriticRLModel):
             expert_dataset = self.expert_dataset
         
         data = {
-            "gamma": self.gamma,
+            # "gamma": self.gamma,
             "timesteps_per_batch": self.timesteps_per_batch,
             "max_kl": self.max_kl,
             "cg_iters": self.cg_iters,
@@ -514,7 +514,7 @@ class TRPO(ActorCriticRLModel):
             "d_stepsize": self.d_stepsize,
             "using_gail": self.using_gail,
             "verbose": self.verbose,
-            "policy": self.policy,
+            # "policy": self.policy,
             "observation_space": self.observation_space,
             "action_space": self.action_space,
             "n_envs": self.n_envs,
