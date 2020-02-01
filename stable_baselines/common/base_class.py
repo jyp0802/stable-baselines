@@ -280,6 +280,7 @@ class BaseRLModel(ABC):
         from collections import defaultdict
         self.bc_info = {"game_stats": defaultdict(list)}
         train_losses, val_losses, val_accuracies, avg_rewards, avg_unstuck_rewards = [], [], [], [], []
+        print("TRAIN SIZE", len(dataset.train_loader.indices), "VAL SIZE", len(dataset.val_loader.indices))
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
@@ -385,8 +386,8 @@ class BaseRLModel(ABC):
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
                     print('Epoch {}'.format(epoch_idx + 1))
-                    print("Training loss: {:.6f}, Validation loss: {:.6f}, Accuracy: {:.6f}".format(
-                        train_loss, val_loss, val_accuracy
+                    print("Training loss: {:.6f}, Validation loss: {:.6f}, Top {} Accuracy (probably broken): {:.6f}".format(
+                        train_loss, val_loss, k, val_accuracy
                     ))
                     print()
 
