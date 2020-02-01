@@ -379,9 +379,9 @@ class BaseRLModel(ABC):
                         avg_reward = np.mean(trajs['ep_returns'])
                         avg_rewards.append(avg_reward)
 
-                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
-                        avg_reward = np.mean(trajs['ep_returns'])
-                        avg_unstuck_rewards.append(avg_reward)
+                        # trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
+                        # avg_reward = np.mean(trajs['ep_returns'])
+                        # avg_unstuck_rewards.append(avg_reward)
 
                 if self.verbose > 0:
                     print("==== Training progress {:.2f}% ====".format(100 * (epoch_idx + 1) / n_epochs))
