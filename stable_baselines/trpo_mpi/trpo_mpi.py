@@ -514,7 +514,7 @@ class TRPO(ActorCriticRLModel):
             "d_stepsize": self.d_stepsize,
             "using_gail": self.using_gail,
             "verbose": self.verbose,
-            # "policy": self.policy,
+            "policy": self.policy,
             "observation_space": self.observation_space,
             "action_space": self.action_space,
             "n_envs": self.n_envs,
