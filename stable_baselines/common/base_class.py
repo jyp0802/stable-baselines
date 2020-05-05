@@ -341,10 +341,10 @@ class BaseRLModel(ABC):
 
                 if evaluation:
                     if evaluation == "gathering":
-                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
+                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking
                         from gathering_ai_py.agents.benchmarking import AgentEvaluator
                         from gathering_ai_py.agents.agent import AgentPair
-                        from human_aware_rl.ppo.ppo import get_ppo_agent
+                        from human_aware_rl.ppo.ppo import PPOAgent
                         from human_aware_rl.imitation.behavioural_cloning import get_bc_agent_from_model
                         import copy
 
@@ -354,7 +354,7 @@ class BaseRLModel(ABC):
 
                         # Evaluate wrt apple pickups with other BC agent
                         n_games = 20
-                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=True, a_eval_and_ap=(a_eval, AgentPair))
+                        trajs = eval_with_benchmarking(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=True, a_eval_and_ap=(a_eval, AgentPair))
                         stats = a_eval.get_summary_stats_across_trajs(trajs)
                         avg_apple_pickup = np.mean(stats['apple_pickup'])
                         self.bc_info["game_stats"]["apple_pickups"].append(avg_apple_pickup)
@@ -366,21 +366,21 @@ class BaseRLModel(ABC):
                         # Evaluate wrt score wrt SP agent
                         n_games = 20
                         a0 = get_bc_agent_from_model(self, self.bc_params, unblock_if_stuck=False, stochastic=True, gathering=True, mdp=a_eval.mdp_fn())
-                        a1, _ = get_ppo_agent("gathering_sp_basic", None, env_name="Gathering-v0", best=True)
+                        a1, _ = PPOAgent.from_saved("gathering_sp_basic", None, env_name="Gathering-v0", best=True)
                         ap = AgentPair(a0, a1)
                         trajs = a_eval.evaluate_agent_pair(ap, num_games=n_games, display=False, info=True)
                         avg_reward = np.mean(trajs['ep_returns'])
                         avg_rewards.append(avg_reward)
 
                     else:
-                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking_from_model
+                        from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking
 
                         n_games = 20
-                        trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
+                        trajs = eval_with_benchmarking(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
                         avg_reward = np.mean(trajs['ep_returns'])
                         avg_rewards.append(avg_reward)
 
-                        # trajs = eval_with_benchmarking_from_model(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
+                        # trajs = eval_with_benchmarking(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=True, info=False)
                         # avg_reward = np.mean(trajs['ep_returns'])
                         # avg_unstuck_rewards.append(avg_reward)
 
