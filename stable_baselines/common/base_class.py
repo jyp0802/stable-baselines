@@ -213,7 +213,7 @@ class BaseRLModel(ABC):
         pass
 
     def pretrain(self, dataset, n_epochs=10, learning_rate=1e-4,
-                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=False):
+                 adam_epsilon=1e-8, val_interval=None, save_dir=None, evaluation=False, bc_params=None):
         """
         Pretrain a model using behavior cloning:
         supervised learning given an expert dataset.
@@ -284,7 +284,6 @@ class BaseRLModel(ABC):
         for epoch_idx in range(int(n_epochs)):
             train_loss = 0.0
             # Full pass on the training set
-            print("GOT DATA", epoch_idx)
             for _ in range(len(dataset.train_loader)):
                 expert_obs, expert_actions = dataset.get_next_batch('train')
                 feed_dict = {
@@ -302,8 +301,8 @@ class BaseRLModel(ABC):
                 wait_action_idx = Action.ACTION_TO_INDEX[Action.STAY]
 
                 val_loss = 0.0
-                # Full pass on the validation set
-                for _ in range(len(dataset.val_loader)):
+                # Full pass on the validation set (minus at most one batch, due to likely indexing error in stable baselines logic?)
+                for _ in range(len(dataset.val_loader) - 1):
                     expert_obs, expert_actions = dataset.get_next_batch('val')
                     val_loss_, predicted_actions = self.sess.run([loss, actions_logits_ph], {obs_ph: expert_obs,
                                                         actions_ph: expert_actions})
@@ -376,7 +375,7 @@ class BaseRLModel(ABC):
                         from human_aware_rl.imitation.behavioural_cloning import eval_with_benchmarking
 
                         n_games = 20
-                        trajs = eval_with_benchmarking(n_games, self, self.bc_params, stochastic=True, unblock_if_stuck=False, info=False)
+                        trajs = eval_with_benchmarking(n_games, self, unblock_if_stuck=False, info=False, bc_params=bc_params)
                         avg_reward = np.mean(trajs['ep_returns'])
                         avg_rewards.append(avg_reward)
 

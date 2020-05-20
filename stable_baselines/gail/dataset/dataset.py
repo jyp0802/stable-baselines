@@ -71,14 +71,12 @@ class ExpertDataset(object):
         # if len(actions.shape) > 2:
         #     actions = np.reshape(actions, [-1, np.prod(actions.shape[1:])])
         observations = np.squeeze(observations)
-        print(observations.shape)
-        print(actions.shape)
-
         indices = np.random.permutation(len(observations)).astype(np.int64)
 
         # Train/Validation split when using behavior cloning
-        train_indices = indices[:int(train_fraction * len(indices))]
-        val_indices = indices[int(train_fraction * len(indices)):]
+        split_idx = int(train_fraction * len(indices))
+        train_indices = indices[:split_idx]
+        val_indices = indices[split_idx:]
 
         if len(indices_split) > 0:
             train_indices, val_indices = indices_split
