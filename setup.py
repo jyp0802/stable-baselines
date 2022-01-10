@@ -116,7 +116,7 @@ setup(name='stable_baselines',
           'click',
           'opencv-python',
           'numpy',
-          'pandas',
+          'pandas==1.3.5',
           'matplotlib',
           'seaborn',
           'glob2'
